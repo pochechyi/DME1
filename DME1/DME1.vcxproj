@@ -124,6 +124,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DME1.cpp" />
+    <ClCompile Include="Helicopter.cpp" />
+    <ClCompile Include="SearchMission.cpp" />
+    <ClCompile Include="Statiom.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Helicopter.h" />
+    <ClInclude Include="Point.h" />
+    <ClInclude Include="SearchMission.h" />
+    <ClInclude Include="Station.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="helicopters.txt" />
+    <Text Include="log.txt" />
+    <Text Include="stations.txt" />
+    <Text Include="target.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

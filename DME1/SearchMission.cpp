@@ -1,21 +1,29 @@
 ﻿#include "SearchMission.h"
 #include <fstream>
 #include <sstream>
+#include <cstdlib>
+#include <ctime>
 
 // Конструктор
 SearchMission::SearchMission()
-    : target(0, 0), maxSteps(MaxSteps), currentStep(0), targetFound(false)
+    : target(0, 0), maxSteps(100), currentStep(0), targetFound(false)
 {
-    foundByHelicopter = new char[MAX_ID_LENGTH];
+    foundByHelicopter = new char[256];
     foundByHelicopter[0] = '\0';
 }
 
+// Деструктор
 SearchMission::~SearchMission()
 {
-    delete[]foundByHelicopter;
+    delete[] foundByHelicopter;
 }
 
-SearchMission::SearchMission(const SearchMission& s):target(s.target), maxSteps(s.maxSteps), currentStep(s.currentStep), targetFound(s.targetFound)
+// Конструктор копирования
+SearchMission::SearchMission(const SearchMission& s)
+    : target(s.target),
+    maxSteps(s.maxSteps),
+    currentStep(s.currentStep),
+    targetFound(s.targetFound)
 {
     foundByHelicopter = new char[strlen(s.foundByHelicopter) + 1];
     strcpy_s(foundByHelicopter, strlen(s.foundByHelicopter) + 1, s.foundByHelicopter);
@@ -35,8 +43,6 @@ bool SearchMission::loadStations(const char* filename)
 
     while (std::getline(file, line)) {
         lineNumber++;
-
-        // Пропускаем пустые строки
         if (line.empty()) continue;
 
         std::istringstream iss(line);
@@ -44,7 +50,6 @@ bool SearchMission::loadStations(const char* filename)
         double x, y;
 
         if (iss >> name >> x >> y) {
-            // Проверка на корректность координат (не NaN, не бесконечность)
             if (std::isfinite(x) && std::isfinite(y)) {
                 stations.push_back(Station(Point(x, y), name.c_str()));
                 printf("Загружена станция: %s (%.2lf, %.2lf)\n", name.c_str(), x, y);
@@ -63,21 +68,7 @@ bool SearchMission::loadStations(const char* filename)
     return true;
 }
 
-// Поиск станции по имени
-Station* SearchMission::findStationByName(const char* name)
-{
-    if (name == nullptr) return nullptr;
-
-    for (auto& station : stations) {
-        if (strcmp(station.getName(), name) == 0) {
-            return &station;  // возвращаем указатель на найденную станцию
-        }
-    }
-
-    return nullptr;  // станция не найдена
-}
-
-// Загрузка вертолётов из файла (пока заглушка)
+// Загрузка вертолётов из файла
 bool SearchMission::loadHelicopters(const char* filename)
 {
     std::ifstream file(filename);
@@ -98,23 +89,19 @@ bool SearchMission::loadHelicopters(const char* filename)
         std::string id, stationName;
         double x, y, radius, speed;
 
-        // Формат: ID X Y Radius Speed StationName
         if (iss >> id >> x >> y >> radius >> speed >> stationName) {
-            // Проверяем корректность данных
             if (!std::isfinite(x) || !std::isfinite(y) ||
                 !std::isfinite(radius) || !std::isfinite(speed)) {
                 printf("Предупреждение: строка %d содержит некорректные числа\n", lineNumber);
                 continue;
             }
 
-            // Ищем станцию базирования
             Station* baseStation = findStationByName(stationName.c_str());
             if (baseStation == nullptr) {
                 printf("Предупреждение: строка %d - станция '%s' не найдена, "
                     "вертолёт будет без базы\n", lineNumber, stationName.c_str());
             }
 
-            // Создаём вертолёт
             Point pos(x, y);
             helicopters.push_back(Helicopter(id.c_str(), pos, radius, baseStation, speed));
             loadedCount++;
@@ -154,7 +141,21 @@ bool SearchMission::loadTarget(const char* filename)
     return false;
 }
 
-// Остальные методы (заглушки)
+// Поиск станции по имени
+Station* SearchMission::findStationByName(const char* name)
+{
+    if (name == nullptr) return nullptr;
+
+    for (auto& station : stations) {
+        if (strcmp(station.getName(), name) == 0) {
+            return &station;
+        }
+    }
+
+    return nullptr;
+}
+
+// Сеттеры
 void SearchMission::setTarget(const Point& newTarget)
 {
     target = newTarget;
@@ -165,58 +166,124 @@ void SearchMission::setMaxSteps(int steps)
     maxSteps = steps;
 }
 
+// Запуск поиска
 void SearchMission::run()
 {
-    printf("Запуск поисковой миссии...\n");
+    printf("\n=== ЗАПУСК ПОИСКОВОЙ МИССИИ ===\n");
     printf("Цель: ");
     target.print();
     printf("Максимальное число шагов: %d\n", maxSteps);
 
-    // Сбрасываем счётчик
     currentStep = 1;
     targetFound = false;
 
-    // Цикл поиска
-    while (currentStep < maxSteps && !targetFound) {
-        makeStep();  // делаем шаг
+    // Начальная карта
+    printf("\n📍 НАЧАЛЬНАЯ СИТУАЦИЯ:\n");
+    drawMap();
 
-        if (targetFound) {
-            // Если нашли, выводим статус с правильным номером шага
-            printf("Шаг %d/%d: ЦЕЛЬ ОБНАРУЖЕНА!\n", currentStep, maxSteps);
-        }
-        else {
-            printStatus();  // обычный статус
-        }
+    while (currentStep <= maxSteps && !targetFound) {
+        printf("\n=== ШАГ %d ===\n", currentStep);
+        makeStep();
+        drawMap();
 
         if (!targetFound) {
-            currentStep++;  // увеличиваем счётчик ТОЛЬКО если не нашли
+            printf("Шаг %d/%d: поиск продолжается... Нажмите Enter", currentStep, maxSteps);
+            getchar();
+            currentStep++;
         }
     }
 
     printResult();
 }
+
+// Один шаг поиска
 void SearchMission::makeStep()
 {
-    // Двигаем все вертолёты к цели
+    // Движение вертолётов
     for (auto& heli : helicopters) {
+        Point oldPos = heli.getPosition();
         heli.moveTowards(target);
+        Point newPos = heli.getPosition();
+        printf("  %s: (%.1f, %.1f) -> (%.1f, %.1f)\n",
+            heli.getId(), oldPos.x, oldPos.y, newPos.x, newPos.y);
     }
 
-    // Проверяем обнаружение цели
+    // Проверка обнаружения
+    checkDetection();
+}
+
+// Проверка обнаружения цели
+void SearchMission::checkDetection()
+{
     for (const auto& heli : helicopters) {
         if (heli.detect(target)) {
             targetFound = true;
             strcpy_s(foundByHelicopter, 256, heli.getId());
 
-            // Для отладки - покажем расстояние
             Point pos = heli.getPosition();
             double dist = pos.get_distance(target.x, target.y);
-            printf("  >>> Вертолёт %s обнаружил цель с расстояния %.2lf!\n",
+            printf("\n🎯 ВЕРТОЛЁТ %s ОБНАРУЖИЛ ЦЕЛЬ! (расстояние: %.2f)\n",
                 heli.getId(), dist);
             break;
         }
     }
 }
+
+void SearchMission::drawMap() const
+{
+    const int MIN = -15;
+    const int MAX = 15;
+
+    printf("\n  КАРТА ПОИСКА\n");
+    printf("  +");
+    for (int x = MIN; x <= MAX; x++) printf("-");
+    printf("+\n");
+
+    for (int y = MAX; y >= MIN; y--) {
+        printf("  |");
+        for (int x = MIN; x <= MAX; x++) {
+            char c = '.';
+
+            // Цель
+            if (abs(x - target.x) < 0.5 && abs(y - target.y) < 0.5) {
+                c = 'X';
+            }
+
+            // Вертолёты
+            for (const auto& heli : helicopters) {
+                Point pos = heli.getPosition();
+                if (abs(x - pos.x) < 0.5 && abs(y - pos.y) < 0.5) {
+                    c = heli.detect(target) ? '!' : heli.getId()[0];
+                    break;
+                }
+            }
+
+            // Станции
+            for (const auto& station : stations) {
+                Point pos = station.getCoordinates();
+                if (abs(x - pos.x) < 0.5 && abs(y - pos.y) < 0.5) {
+                    c = 'S';
+                    break;
+                }
+            }
+
+            printf("%c", c);
+        }
+        printf("| %3d\n", y);
+    }
+
+    printf("  +");
+    for (int x = MIN; x <= MAX; x++) printf("-");
+    printf("+\n");
+    printf("    ");
+    for (int x = MIN; x <= MAX; x += 5) {
+        printf("%-5d", x);
+    }
+    printf("\n");
+    printf("  X-цель, S-станция, !-ОБНАРУЖИЛ, буквы-вертолёты\n");
+}
+
+// Печать статуса
 void SearchMission::printStatus() const
 {
     if (targetFound) {
@@ -224,20 +291,15 @@ void SearchMission::printStatus() const
         return;
     }
 
-    // Показываем прогресс каждые 5 шагов
     if (currentStep % 5 == 0 || currentStep == maxSteps) {
         printf("Шаг %d/%d: поиск... ", currentStep, maxSteps);
 
-        // Найти ближайший вертолёт
         double minDist = 1e9;
         for (const auto& heli : helicopters) {
             double dist = heli.getPosition().get_distance(target.x, target.y);
-            if (dist < minDist) {
-                minDist = dist;
-            }
+            if (dist < minDist) minDist = dist;
         }
 
-        // Прогресс-бар
         int progress = (int)((1.0 - minDist / 25.0) * 20);
         if (progress < 0) progress = 0;
         if (progress > 20) progress = 20;
@@ -249,11 +311,13 @@ void SearchMission::printStatus() const
         printf("] %.1lf до цели\n", minDist);
     }
 }
+
+// Печать результата
 void SearchMission::printResult() const
 {
     printf("\n========== РЕЗУЛЬТАТ ПОИСКА ==========\n");
     if (targetFound) {
-        printf("✓ Цель обнаружена на шаге %d\n", currentStep);  // уже правильно
+        printf("✓ Цель обнаружена на шаге %d\n", currentStep);
         printf("  Вертолёт: %s\n", foundByHelicopter);
         printf("  Координаты цели: ");
         target.print();
@@ -264,6 +328,7 @@ void SearchMission::printResult() const
     printf("======================================\n");
 }
 
+// Сохранение лога
 bool SearchMission::saveLog(const char* filename) const
 {
     FILE* file = nullptr;
@@ -279,20 +344,15 @@ bool SearchMission::saveLog(const char* filename) const
     fprintf(file, "=== СТАНЦИИ ===\n");
     for (const auto& station : stations) {
         Point pos = station.getCoordinates();
-        fprintf(file, "  - %s: (%.2lf, %.2lf)\n",
-            station.getName(), pos.x, pos.y);
+        fprintf(file, "  - %s: (%.2lf, %.2lf)\n", station.getName(), pos.x, pos.y);
     }
 
     fprintf(file, "\n=== ВЕРТОЛЁТЫ ===\n");
     for (const auto& heli : helicopters) {
         Point pos = heli.getPosition();
-        const char* baseName = "нет базы";
-        if (heli.getBase() != nullptr) {
-            baseName = heli.getBase()->getName();
-        }
+        const char* baseName = heli.getBase() ? heli.getBase()->getName() : "нет базы";
         fprintf(file, "  - %s: (%.2lf, %.2lf), радиус=%.1lf, база=%s\n",
-            heli.getId(), pos.x, pos.y,
-            heli.getDetectionRadius(), baseName);
+            heli.getId(), pos.x, pos.y, heli.getDetectionRadius(), baseName);
     }
 
     fprintf(file, "\n=== РЕЗУЛЬТАТ ===\n");
@@ -300,7 +360,6 @@ bool SearchMission::saveLog(const char* filename) const
     fprintf(file, "Статус: %s\n", targetFound ? "НАЙДЕН" : "НЕ НАЙДЕН");
 
     if (targetFound) {
-        Point pos = target;
         fprintf(file, "Найден вертолётом: %s\n", foundByHelicopter);
         fprintf(file, "На шаге: %d\n", currentStep);
     }

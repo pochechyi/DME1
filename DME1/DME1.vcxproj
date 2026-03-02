@@ -126,7 +126,7 @@
     <ClCompile Include="DME1.cpp" />
     <ClCompile Include="Helicopter.cpp" />
     <ClCompile Include="SearchMission.cpp" />
-    <ClCompile Include="Statiom.cpp" />
+    <ClCompile Include="Station.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Helicopter.h" />

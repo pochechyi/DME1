@@ -1,5 +1,4 @@
 ﻿#include "SearchMission.h"
-#include <iostream>
 #include <ctime>
 
 int main()

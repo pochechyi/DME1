@@ -21,7 +21,7 @@
     <ClCompile Include="Helicopter.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="Statiom.cpp">
+    <ClCompile Include="Station.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="SearchMission.cpp">

@@ -2,7 +2,7 @@
 #include <stdio.h> // для ввод и вывода
 #include <cmath> // для корня
 #include <cstring>//для strlen
-
+#include <iostream> // для random
 struct Point
 {
 	double x, y;

@@ -29,8 +29,11 @@ public:
     // Сохранение результатов
     bool saveLog(const char* filename) const;
 
+    void menu();
+
     // Основные методы
     void setTarget(const Point& newTarget);
+    void checkDetection();
     void setMaxSteps(int steps);
     void run();                              // запустить поиск
     void makeStep();                          // сделать один шаг
@@ -39,6 +42,10 @@ public:
     // Вспомогательные методы
     void printStatus() const;                  // вывести текущее состояние
     void printResult() const;                  // вывести результат
+
+
+
+    void drawMap() const;
 
 private:
     // Вспомогательные методы для работы с файлами
